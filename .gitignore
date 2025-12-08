@@ -1,0 +1,16 @@
+/combined
+/IPDbrain_ds
+/venv
+/DTFD-MIL/IPD_Brain-main/venv
+/venv311
+*.pt
+*.png
+/CLAM-master/datasets
+/CLAM-master/heatmaps
+/CLAM-master/heatmaps_class
+/DTFD-MIL/datasets
+/DTFD-MIL/IPD-Brain-main/attention_maps
+/DTFD-MIL/IPD-Brain-main/datasets
+/DTFD-MIL/IPD-Brain-main/outputs
+
+

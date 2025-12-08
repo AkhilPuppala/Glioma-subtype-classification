@@ -1,0 +1,39 @@
+# Commands used during this session (patch/stitch creation -> feature extraction -> training)
+
+# 1) Create patches and run segmentation, then extract features (single-line chained command)
+python .\create_patches_fp.py --source .\datasets\labelled --save_dir .\datasets\patches --patch --seg --stitch
+
+# 2) Feature extraction (multi-line PowerShell style)
+python .\extract_features.py `
+  --patch_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\patches\stitches `
+  --save_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features `
+  --model resnet50 `
+  --batch_size 64 `
+  --device cpu
+
+# 3) Alternate feature extraction invocation (earlier attempt)
+python .\extract_features.py --patch_dir .\datasets\patches\patches --save_dir .\datasets\features --model resnet50 --batch_size 32 --device cpu
+
+# 4) Generate available-features dataset CSV (script created & executed)
+python .\scripts\generate_available_features_csv.py
+
+# 5) Generate splits CSV filtered to available features
+python .\scripts\generate_splits_available.py
+
+# 6) Training runs (various attempts)
+# a) Attempt using original full CSV and default splits (produced IndexError due to class mismatch)
+python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/datasets --dataset_csv D:/IPD/IPD-Brain-main/IPD-Brain-main/datasets/IPD_Brain.csv --label_col Subtype
+
+# b) Training using available-features CSV (1 epoch)
+python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir datasets/splits_available --dataset_csv datasets/IPD_Brain_available_features.csv --label_col Subtype --EPOCH 1
+
+# c) Training with corrected number of classes to fix IndexError (what resolved the crash)
+python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir datasets/splits_available --dataset_csv datasets/IPD_Brain_available_features.csv --label_col Subtype --EPOCH 1 --num_cls 3
+
+# d) Longer training run used later (50 epochs) with corrected num_cls
+python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir datasets/splits_available --dataset_csv datasets/IPD_Brain_available_features.csv --label_col Subtype --EPOCH 50 --num_cls 3
+
+# Notes:
+# - All commands are intended to be run from the repository root: D:\IPD\IPD-Brain-main\IPD-Brain-main
+# - PowerShell line continuation is shown with backticks (`) where used in multi-line commands.
+# - If you want these exact commands in a different path or with different options (GPU, batch size, etc.), tell me and I can adjust.

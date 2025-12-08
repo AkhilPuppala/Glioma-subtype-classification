@@ -1,0 +1,14 @@
+python .\create_patches_fp.py --source .\datasets\labelled --save_dir .\datasets\patches --patch --seg               
+
+python .\extract_features.py 
+
+python create_splits.py 
+
+python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir datasets/splits_available --dataset_csv datasets/IPD_Brain_available_features.csv --label_col Subtype --EPOCH 50
+
+
+python Main_DTFD_MIL.py --dataset_csv D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\IPD_Brain_available_features.csv --splits_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\splits_available --data_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features --label_col Subtype --device cpu --lr 1.0044738103256931e-05 --weight_decay 2.9990294515577e-05 --droprate 0.338125097749074 --numGroup 3 --numGroup_test 3 --numLayer_Res 1 --EPOCH 10 --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --isSaveModel
+
+{'lr': 1.9805531054030883e-05, 'weight_decay': 4.0749036033865344e-05, 'droprate': 0.3782058935342169, 'numLayer_Res': 1, 'EPOCH': 20}
+
+Params: {'lr': 4.49802356395971e-05, 'weight_decay': 4.031117225215412e-05, 'droprate': 0.22639187454159052, 'numLayer_Res': 0}

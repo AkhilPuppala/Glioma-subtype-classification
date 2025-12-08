@@ -1,0 +1,4 @@
+class_id,class_name,total_samples,correct_predictions,accuracy
+0,ASTROCYTOMA,14,8,0.5714285714285714
+1,GLIOBLASTOMA,27,16,0.5925925925925926
+2,OLIGODENDROGLIOMA,8,7,0.875
