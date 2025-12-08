@@ -4,7 +4,6 @@
 /DTFD-MIL/IPD_Brain-main/venv
 /venv311
 *.pt
-*.png
 /CLAM-master/datasets
 /CLAM-master/heatmaps
 /CLAM-master/heatmaps_class
