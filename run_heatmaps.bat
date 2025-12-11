@@ -6,9 +6,9 @@ echo Running heatmaps for ALL slides in coords directory
 echo =====================================================
 
 REM Set paths
-set COORDS_DIR=D:\IPD\DTFD\IPD-Brain-main\datasets\coords
+set COORDS_DIR=D:\IPD\CLAM-master\datasets\coords
 set CLAM_OUT=D:\IPD\CLAM-master\heatmaps
-set DTFD_OUT=D:\IPD\DTFD\IPD-Brain-main\attention_maps
+set DTFD_OUT=D:\IPD\DTFD-MIL\IPD_Brain-main\IPD-Brain-main\attention_maps
 set OUT_DIR=combined
 
 mkdir %OUT_DIR% 2>nul
@@ -29,18 +29,18 @@ for %%F in ("%COORDS_DIR%\*.csv") do (
     echo Running CLAM heatmap...
     python D:\IPD\CLAM-master\generate_attention_maps.py ^
         --slide_id "!SLIDE_ID!" ^
-        --coords_dir "D:\IPD\DTFD\IPD-Brain-main\datasets\coords" ^
-        --feats_dir  "D:\IPD\DTFD\IPD-Brain-main\datasets\features\pt_files" ^
-        --wsi_dir    "D:\IPD\DTFD\IPD-Brain-main\datasets\labelled" ^
+        --coords_dir "D:\IPD\CLAM-master\datasets\coords" ^
+        --feats_dir  "D:\IPD\CLAM-master\datasets\features\pt_files" ^
+        --wsi_dir    "D:\IPD\CLAM-master\datasets\labelled" ^
         --out_dir    "%CLAM_OUT%"
 
     REM ============= RUN DTFD =============
     echo Running DTFD heatmap...
-    python D:\IPD\DTFD\IPD-Brain-main\generate_attention_maps.py ^
+    python D:\IPD\DTFD-MIL\IPD_Brain-main\IPD-Brain-main\generate_attention_maps.py ^
         --slide_id "!SLIDE_ID!" ^
-        --coords_dir "D:\IPD\DTFD\IPD-Brain-main\datasets\coords" ^
-        --feats_dir  "D:\IPD\DTFD\IPD-Brain-main\datasets\features\pt_files" ^
-        --wsi_dir    "D:\IPD\DTFD\IPD-Brain-main\datasets\labelled" ^
+        --coords_dir "D:\IPD\CLAM-master\datasets\coords" ^
+        --feats_dir  "D:\IPD\CLAM-master\datasets\features\pt_files" ^
+        --wsi_dir    "D:\IPD\CLAM-master\datasets\labelled" ^
         --save_dir   "%DTFD_OUT%"
 
     REM ============= COMBINE HEATMAPS =============

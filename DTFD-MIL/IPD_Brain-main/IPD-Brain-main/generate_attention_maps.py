@@ -4,16 +4,17 @@ import cv2
 import os
 import glob
 import pandas as pd
+import argparse
 
-# If you use .svs images
+# Try to import OpenSlide
 try:
     import openslide
     OPENS_SLIDE_ENABLED = True
 except ImportError:
     OPENS_SLIDE_ENABLED = False
-    print("⚠ OpenSlide not installed. .svs images will not work unless installed.")
+    print("⚠ OpenSlide not installed. .svs images will not work.")
 
-# === IMPORT YOUR MODEL CLASSES ===
+# === IMPORT MODEL CLASSES ===
 from Main_DTFD_MIL import (
     Classifier_1fc,
     Attention,
@@ -22,19 +23,42 @@ from Main_DTFD_MIL import (
     transform_state_dict,
 )
 
-# =======================
-#       USER SETTINGS
-# =======================
+# ----------------------------------------------------
+# ARGUMENT PARSER WITH DEFAULTS MATCHING run_heatmaps
+# ----------------------------------------------------
+parser = argparse.ArgumentParser()
 
-MODEL_PATH = r"D:\IPD\IPD-Brain-main\IPD-Brain-main\Model\best_model1.pth"
-COORDS_DIR = r"D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\coords"
-FEATURES_DIR = r"D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features\pt_files"
-WSI_DIR = r"D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\labelled"
-SAVE_DIR = r"D:\IPD\IPD-Brain-main\IPD-Brain-main\attention_maps"
+parser.add_argument("--slide_id", type=str, required=True,
+                    help="Slide ID such as 'IN Brain-0002'")
+
+parser.add_argument("--coords_dir", type=str,
+                    default=r"D:\IPD\CLAM-master\datasets\coords",
+                    help="Directory containing slide .csv coordinate files")
+
+parser.add_argument("--feats_dir", type=str,
+                    default=r"D:\IPD\CLAM-master\datasets\features\pt_files",
+                    help="Directory containing .pt feature files")
+
+parser.add_argument("--wsi_dir", type=str,
+                    default=r"D:\IPD\CLAM-master\datasets\labelled",
+                    help="Directory containing WSI images")
+
+parser.add_argument("--save_dir", type=str,
+                    default=r"D:\IPD\DTFD-MIL\IPD_Brain-main\IPD-Brain-main\attention_maps",
+                    help="Directory to save DTFD heatmaps")
+
+args = parser.parse_args()
+
+SLIDE_ID   = args.slide_id
+COORDS_DIR = args.coords_dir
+FEATURES_DIR = args.feats_dir
+WSI_DIR      = args.wsi_dir
+SAVE_DIR     = args.save_dir
 
 PATCH_SIZE = 256
-DOWNSAMPLE_FACTOR = 4  # Control heatmap resolution (higher = smoother, lower-res)
-SLIDE_ID = "IN Brain-0046"
+DOWNSAMPLE_FACTOR = 4
+
+MODEL_PATH = r"D:\IPD\DTFD-MIL\IPD_Brain-main\IPD-Brain-main\Model--isSaveModel\abc\abc\best_model.pth"
 
 params = {
     "in_chn": 2048,
@@ -45,10 +69,9 @@ params = {
     "numLayer_Res": 1,
 }
 
-# =======================
-#     MODEL LOADING
-# =======================
-
+# ----------------------------------------------------
+# MODEL LOADING
+# ----------------------------------------------------
 def load_model(device):
     classifier = Classifier_1fc(params["mDim"], params["num_cls"], params["droprate"]).to(device)
     attention = Attention(params["mDim"]).to(device)
@@ -64,7 +87,9 @@ def load_model(device):
         "dim_reduction": dimReduction,
         "att_classifier": attCls,
     }
+
     embed = transform_state_dict(checkpoint, util_dict)
+
     for key in util_dict.keys():
         util_dict[key].load_state_dict(embed[key], strict=False)
         util_dict[key].eval()
@@ -72,116 +97,103 @@ def load_model(device):
     print("✅ Model successfully loaded!")
     return util_dict
 
-# =======================
-#  LOAD FEATURES + COORDS
-# =======================
 
-def load_features_and_coords(slide_id, coords_dir, feat_dir):
-    csv_path = os.path.join(coords_dir, f"{slide_id}.csv")
+# ----------------------------------------------------
+# LOAD FEATURES + COORDS
+# ----------------------------------------------------
+def load_features_and_coords(slide_id):
+    csv_path = os.path.join(COORDS_DIR, f"{slide_id}.csv")
     df = pd.read_csv(csv_path)
     coords = df[['x', 'y']].values.astype(np.int32)
 
-    pt_files = sorted(glob.glob(os.path.join(feat_dir, f"{slide_id}*.pt")))
-    assert len(pt_files) > 0, f"❌ No feature .pt files found for {slide_id}"
-    feat_list = [torch.load(f) for f in pt_files]
-    features = torch.cat(feat_list, dim=0).float()
+    pt_files = sorted(glob.glob(os.path.join(FEATURES_DIR, f"{slide_id}*.pt")))
+    assert pt_files, f"❌ No .pt feature files found for {slide_id}"
+
+    features = torch.cat([torch.load(f) for f in pt_files], dim=0).float()
 
     assert features.shape[0] == coords.shape[0], \
-        f"❌ Mismatch: {features.shape[0]} features vs {coords.shape[0]} coords"
+        f"❌ Feature/coord mismatch: {features.shape[0]} vs {coords.shape[0]}"
 
     print(f"📌 Loaded {features.shape[0]} patches for: {slide_id}")
     return features, coords
 
-# =======================
-#  GATED ATTENTION COMPUTATION
-# =======================
 
+# ----------------------------------------------------
+# ATTENTION COMPUTATION
+# ----------------------------------------------------
 @torch.no_grad()
 def get_attention_scores(features, model_dict, device):
-    features = features.to(device, non_blocking=True)
+    features = features.to(device)
     z = model_dict["dim_reduction"](features)
-    att_module = model_dict["att_classifier"]
 
-    # ✅ Gated Attention: A = W(vec(tanh(V(z)) * sigmoid(U(z))))
-    V = torch.tanh(att_module.attention.attention_V(z))
-    U = torch.sigmoid(att_module.attention.attention_U(z))
-    A = att_module.attention.attention_weights(V * U)  # [N, 1]
+    att = model_dict["att_classifier"].attention
+
+    V = torch.tanh(att.attention_V(z))
+    U = torch.sigmoid(att.attention_U(z))
+
+    A = att.attention_weights(V * U)
     A = torch.softmax(A.squeeze(1), dim=0)
 
     return A.cpu().numpy()
 
-# =======================
-#  VISUALIZATION
-# =======================
 
-def load_slide(slide_id, wsi_dir):
-    for ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff"):
-        img_path = os.path.join(wsi_dir, f"{slide_id}{ext}")
-        if os.path.exists(img_path):
-            print(f"📌 Loading slide image: {os.path.basename(img_path)}")
-            return cv2.imread(img_path)
-    raise FileNotFoundError(f"❌ No slide found for {slide_id}")
+# ----------------------------------------------------
+# LOAD SLIDE IMAGE
+# ----------------------------------------------------
+def load_slide(slide_id):
+    for ext in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]:
+        path = os.path.join(WSI_DIR, f"{slide_id}{ext}")
+        if os.path.exists(path):
+            return cv2.imread(path)
+    raise FileNotFoundError(f"❌ No image found for {slide_id} in {WSI_DIR}")
 
-def visualize_attention(coords, attention_scores, wsi_image, slide_id, patch_size=256, ds_factor=4):
+
+# ----------------------------------------------------
+# VISUALIZATION — Saves: SLIDE_ID_DTFD_heatmap.png
+# ----------------------------------------------------
+def visualize_attention(coords, attention_scores, wsi_image, slide_id):
     os.makedirs(SAVE_DIR, exist_ok=True)
     H, W = wsi_image.shape[:2]
+
     heatmap = np.zeros((H, W), dtype=np.float32)
 
-    # Normalize scales
-    A = attention_scores.astype(np.float32)
-    A = (A - A.min()) / (A.max() - A.min() + 1e-6)
+    # Normalize
+    A = (attention_scores - attention_scores.min()) / (attention_scores.max() - attention_scores.min() + 1e-6)
 
-    # Paint patch contributions (max-merge)
-    for (x, y), score in zip(coords, A):
-        x0, y0 = int(x), int(y)
-        x1, y1 = min(x0 + patch_size, W), min(y0 + patch_size, H)
-        heatmap[y0:y1, x0:x1] = np.maximum(heatmap[y0:y1, x0:x1], score)
+    for (x, y), val in zip(coords, A):
+        x1, y1 = min(x + PATCH_SIZE, W), min(y + PATCH_SIZE, H)
+        heatmap[y:y1, x:x1] = np.maximum(heatmap[y:y1, x:x1], val)
 
-    # ✅ ✅ Downsample for smoother resolution
-    low_res = cv2.resize(
-        heatmap, 
-        (W // ds_factor, H // ds_factor),
-        interpolation=cv2.INTER_AREA
-    )
-    heatmap = cv2.resize(
-        low_res,
-        (W, H),
-        interpolation=cv2.INTER_LINEAR
-    )
+    low_res = cv2.resize(heatmap, (W // DOWNSAMPLE_FACTOR, H // DOWNSAMPLE_FACTOR), interpolation=cv2.INTER_AREA)
+    heatmap = cv2.resize(low_res, (W, H), interpolation=cv2.INTER_LINEAR)
 
-    # Convert to heatmap
     heat_uint8 = (heatmap * 255).astype(np.uint8)
     heatmap_color = cv2.applyColorMap(heat_uint8, cv2.COLORMAP_JET)
-    overlaid = cv2.addWeighted(wsi_image, 0.6, heatmap_color, 0.4, 0)
+    final_overlay = cv2.addWeighted(wsi_image, 0.6, heatmap_color, 0.4, 0)
 
-    # Save
-    overlay_path = os.path.join(SAVE_DIR, f"{slide_id}_heatmap.png")
-    cv2.imwrite(overlay_path, overlaid)
-    print(f"✅ Saved heatmap overlay: {overlay_path}")
+    # 🔥 Required by batch file
+    out_path = os.path.join(SAVE_DIR, f"{slide_id}_DTFD_heatmap.png")
+    cv2.imwrite(out_path, final_overlay)
 
-# =======================
-#         MAIN
-# =======================
+    print(f"✅ Saved heatmap → {out_path}")
 
+
+# ----------------------------------------------------
+# MAIN
+# ----------------------------------------------------
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("\n🔧 Using device:", device)
+    print("🔧 Using:", device)
 
     model_dict = load_model(device)
-    features, coords = load_features_and_coords(SLIDE_ID, COORDS_DIR, FEATURES_DIR)
-    wsi_image = load_slide(SLIDE_ID, WSI_DIR)
+    features, coords = load_features_and_coords(SLIDE_ID)
+    wsi_image = load_slide(SLIDE_ID)
 
-    print("\n🔍 Computing attention scores...")
-    attention_scores = get_attention_scores(features, model_dict, device)
+    print("🔍 Computing attention...")
+    att_scores = get_attention_scores(features, model_dict, device)
 
-    print("\n📊 Attention stats:")
-    print("min:", float(attention_scores.min()))
-    print("max:", float(attention_scores.max()))
-    print("mean:", float(attention_scores.mean()))
-    print("std:", float(attention_scores.std()))
+    visualize_attention(coords, att_scores, wsi_image, SLIDE_ID)
 
-    print("\n🎨 Rendering smoothed heatmap...")
-    visualize_attention(coords, attention_scores, wsi_image, SLIDE_ID, patch_size=PATCH_SIZE, ds_factor=DOWNSAMPLE_FACTOR)
 
 if __name__ == "__main__":
     main()
