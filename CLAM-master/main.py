@@ -11,7 +11,7 @@ from utils.core_utils import train
 from utils.utils import seed_torch
 from dataset_modules.dataset_generic import Generic_MIL_Dataset
 
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, recall_score, f1_score, precision_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -81,7 +81,6 @@ def collect_predictions(model, loader, n_classes):
         "pred_label": [LABEL_MAP[x] for x in all_preds],
     })
 
-    # add probabilities
     for c in range(n_classes):
         df[f"prob_class_{c}"] = probs[:, c]
 
@@ -114,32 +113,29 @@ def main(args):
         ignore=[]
     )
 
-    # ----- IMPORTANT SETTINGS -----
     args.n_classes = 3
     args.reg = 1e-5
     args.subtyping = True
     args.no_inst_cluster = False
     args.weighted_sample = True
 
-    # ------------------------------------------
-    # results directory
-    # ------------------------------------------
     if not os.path.exists(args.results_dir):
         os.mkdir(args.results_dir)
 
     args.results_dir = os.path.join(args.results_dir, f"IPD_s{args.seed}")
     os.makedirs(args.results_dir, exist_ok=True)
 
-    # folder for prediction CSVs + confusion matrices
     pred_dir = os.path.join(args.results_dir, "predictions")
     os.makedirs(pred_dir, exist_ok=True)
 
-    # -----------------------------------------------------
-    # CV Loop
-    # -----------------------------------------------------
     folds = np.arange(args.k)
     all_test_auc, all_val_auc = [], []
     all_test_acc, all_val_acc = [], []
+
+    # NEW METRICS
+    all_test_recall, all_val_recall = [], []
+    all_test_f1, all_val_f1 = [], []
+    all_test_precision, all_val_precision = [], []   # <<< ADDED
 
     print(f"[INFO] Using {args.k}-fold CV")
 
@@ -158,7 +154,7 @@ def main(args):
             (train_ds, val_ds, test_ds),
             i,
             args,
-            return_model=True    # <<< ensures we get trained model
+            return_model=True
         )
 
         all_test_auc.append(test_auc)
@@ -166,37 +162,44 @@ def main(args):
         all_test_acc.append(test_acc)
         all_val_acc.append(val_acc)
 
-        # save model checkpoint (best model)
         torch.save(model.state_dict(), os.path.join(args.results_dir, f"fold_{i}_model.pt"))
 
         from utils.utils import get_split_loader
         test_loader = get_split_loader(test_ds, testing=False)
 
-        # ----------------------------------------------
-        # Collect predictions
-        # ----------------------------------------------
         fold_df = collect_predictions(model, test_loader, args.n_classes)
+        fold_df.to_csv(os.path.join(pred_dir, f"fold_{i}_predictions.csv"), index=False)
 
+        save_confusion_matrix(fold_df, os.path.join(pred_dir, f"fold_{i}_confusion_matrix.png"))
 
-        fold_csv_path = os.path.join(pred_dir, f"fold_{i}_predictions.csv")
-        fold_df.to_csv(fold_csv_path, index=False)
+        # -------------------------------
+        # NEW: Recall, F1, Precision
+        # -------------------------------
+        y_true = fold_df["true_label_num"].values
+        y_pred = fold_df["pred_label_num"].values
 
-        # save confusion matrix
-        cm_path = os.path.join(pred_dir, f"fold_{i}_confusion_matrix.png")
-        save_confusion_matrix(fold_df, cm_path)
+        test_recall = recall_score(y_true, y_pred, average="macro")
+        test_f1 = f1_score(y_true, y_pred, average="macro")
+        test_precision = precision_score(y_true, y_pred, average="macro")   # <<< ADDED
 
-        # save raw results structure
+        all_test_recall.append(test_recall)
+        all_test_f1.append(test_f1)
+        all_test_precision.append(test_precision)                           # <<< ADDED
+
         save_pkl(os.path.join(args.results_dir, f"split_{i}.pkl"), results)
 
     # -------------------------------------------------------
-    # Summary CSV
+    # FINAL SUMMARY CSV
     # -------------------------------------------------------
     df = pd.DataFrame({
         "fold": folds,
         "val_auc": all_val_auc,
         "test_auc": all_test_auc,
         "val_acc": all_val_acc,
-        "test_acc": all_test_acc
+        "test_acc": all_test_acc,
+        "test_precision": all_test_precision,   # <<< ADDED
+        "test_recall": all_test_recall,
+        "test_f1": all_test_f1
     })
 
     df.to_csv(os.path.join(args.results_dir, "summary.csv"), index=False)
@@ -219,7 +222,6 @@ parser.add_argument("--model_type", type=str,
                     choices=["clam_sb", "clam_mb"], default="clam_sb")
 parser.add_argument("--seed", type=int, default=1)
 
-# CLAM-specific
 parser.add_argument("--bag_weight", type=float, default=0.7)
 parser.add_argument("--inst_loss", type=str, default="ce")
 parser.add_argument("--drop_out", type=float, default=0.25)
@@ -227,7 +229,6 @@ parser.add_argument("--model_size", type=str, default="small")
 parser.add_argument("--B", type=int, default=5)
 
 args = parser.parse_args()
-
 
 if __name__ == "__main__":
     main(args)
