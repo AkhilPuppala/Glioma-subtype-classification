@@ -12,3 +12,5 @@ python Main_DTFD_MIL.py --dataset_csv D:\IPD\IPD-Brain-main\IPD-Brain-main\datas
 {'lr': 1.9805531054030883e-05, 'weight_decay': 4.0749036033865344e-05, 'droprate': 0.3782058935342169, 'numLayer_Res': 1, 'EPOCH': 20}
 
 Params: {'lr': 4.49802356395971e-05, 'weight_decay': 4.031117225215412e-05, 'droprate': 0.22639187454159052, 'numLayer_Res': 0}
+
+python main.py --data_root_dir D:\IPD\CLAM-master\datasets\features  --model_type clam_sb --max_epochs 15 --split_dir splits/ipd_subtyping_10fold
