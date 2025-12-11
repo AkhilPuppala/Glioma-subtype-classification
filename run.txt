@@ -1,22 +1,26 @@
-python .\create_patches_fp.py --source .\datasets\labelled --save_dir .\datasets\patches --patch --seg               
+Create patches -> python .\create_patches_fp.py --source .\datasets\labelled --save_dir .\datasets\patches --patch --seg               
 
-python .\extract_features.py 
+Extract features -> python .\extract_features.py 
 
 python create_splits.py 
 
 ############## DTFD #############
 
-python .\Main_DTFD_MIL.py --data_dir datasets/features --batch_size 32 --device cpu --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --splits_dir datasets/splits_available --dataset_csv datasets/IPD_Brain_available_features.csv --label_col Subtype --EPOCH 50
+Hyper parameter tuning -> python Optuna.py --trials 20 --dataset_csv D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\IPD_Brain_available_features.csv --splits_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\splits_available\splits.csv --data_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features --label_col Subtype --device cpu      
 
-python Main_DTFD_MIL.py --dataset_csv D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\IPD_Brain_available_features.csv --splits_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\splits_available --data_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features --label_col Subtype --device cpu --lr 1.0044738103256931e-05 --weight_decay 2.9990294515577e-05 --droprate 0.338125097749074 --numGroup 3 --numGroup_test 3 --numLayer_Res 1 --EPOCH 10 --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --isSaveModel
+DTFD Model training -> python Main_DTFD_MIL.py --dataset_csv D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\IPD_Brain_available_features.csv --splits_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\splits_available --data_dir D:\IPD\IPD-Brain-main\IPD-Brain-main\datasets\features --label_col Subtype --device cpu --lr 1.0044738103256931e-05 --weight_decay 2.9990294515577e-05 --droprate 0.338125097749074 --numGroup 3 --numGroup_test 3 --numLayer_Res 1 --EPOCH 10 --log_dir D:/IPD/IPD-Brain-main/IPD-Brain-main/Model --isSaveModel
 
-{'lr': 1.9805531054030883e-05, 'weight_decay': 4.0749036033865344e-05, 'droprate': 0.3782058935342169, 'numLayer_Res': 1, 'EPOCH': 20}
+Setting                  AUC(%)    F1(%)    Weighted Mean or ACC    Learning rate    Weight Decay    Drop rate
+---------------------------------------------------------------------------------------------------------------
+AUC                      72.45     62.00    —                        1.0044e-05       2.99e-05        0.338
+ACC                      75.81     66.39    68.75                    1.027e-05        2.723e-04       0.2428
+Weighted Mean - 50 Trials 74.53    63.56    66.40                    1.06e-05         1.077e-05       0.3721
+Paper Result             80.50     69.78    —                        —                —               —
 
-Params: {'lr': 4.49802356395971e-05, 'weight_decay': 4.031117225215412e-05, 'droprate': 0.22639187454159052, 'numLayer_Res': 0}
 
 
 ############# CLAM ##############
 
-python main.py --data_root_dir D:\IPD\CLAM-master\datasets\features  --model_type clam_sb --max_epochs 15 --split_dir splits/ipd_subtyping_10fold
+CLAM Model training -> python main.py --data_root_dir D:\IPD\CLAM-master\datasets\features  --model_type clam_sb --max_epochs 15 --split_dir splits/ipd_subtyping_10fold
 
-./run_heatmaps.bat "IN Brain-0151"
+Runs both the models are saves the heatmaps -> ./run_heatmaps.bat "IN Brain-0151"
